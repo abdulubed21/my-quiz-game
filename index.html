@@ -162,13 +162,63 @@
         ];
 
         // --- 2. Data Handling ---
+
+        /**
+         * Creates a seed-based pseudo-random number generator.
+         * This ensures the "random" sequence is the same for the same seed.
+         * @param {number} seed - The seed for the random number generator.
+         * @returns {function(): number} A function that returns a random number between 0 and 1.
+         */
+        function seededRandom(seed) {
+            let state = seed;
+            return function() {
+                state = (state * 9301 + 49297) % 233280;
+                return state / 233280;
+            };
+        }
+
+        /**
+         * Shuffles an array in a deterministic way based on a seed.
+         * @param {Array} array - The array to shuffle.
+         * @param {number} seed - The seed to use for shuffling.
+         * @returns {Array} The shuffled array.
+         */
+        function shuffleWithSeed(array, seed) {
+            const random = seededRandom(seed);
+            let currentIndex = array.length;
+            const newArray = [...array]; // Create a copy to avoid modifying the original array
+
+            // While there remain elements to shuffle.
+            while (currentIndex !== 0) {
+                // Pick a remaining element.
+                const randomIndex = Math.floor(random() * currentIndex);
+                currentIndex--;
+
+                // And swap it with the current element.
+                [newArray[currentIndex], newArray[randomIndex]] = [
+                    newArray[randomIndex], newArray[currentIndex]
+                ];
+            }
+            return newArray;
+        }
+
         function setupDailyQuiz() {
             if (masterQuestionBank.length < 10) {
                 showErrorScreen("Not enough questions in the bank! Please add at least 10.");
                 return;
             }
-            const shuffled = [...masterQuestionBank].sort(() => 0.5 - Math.random());
-            quizData = shuffled.slice(0, 10);
+
+            // Create a unique seed based on the current date (YYYYMMDD format).
+            // This ensures everyone gets the same questions for the entire day.
+            const today = new Date();
+            const dateSeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+
+            // Shuffle the master bank using the same seed for everyone on the same day.
+            const dailyShuffledBank = shuffleWithSeed(masterQuestionBank, dateSeed);
+            
+            // Take the first 10 questions. This list will be the same for the entire day.
+            quizData = dailyShuffledBank.slice(0, 10);
+            
             showStartScreen();
         }
 
@@ -240,6 +290,7 @@
             else { feedbackMessage = "Good effort! Keep learning."; emoji = "🧠"; }
 
             const resultText = `Quiz Complete! You scored ${score} out of ${quizData.length}. ${feedbackMessage}`;
+            const shareScoreText = encodeURIComponent(`🏆 I just scored ${score} out of ${quizData.length} on the Daily Quiz! Can you beat my score? Play here: ${window.location.href}`);
             
             appContainer.innerHTML = `
                 <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl text-center w-full max-w-lg mx-auto">
@@ -247,9 +298,16 @@
                     <p class="text-6xl mb-6">${emoji}</p>
                     <p class="text-xl text-slate-300 mb-2">${feedbackMessage}</p>
                     <p class="text-2xl font-semibold text-white mb-8">You scored ${score} out of ${quizData.length}</p>
-                    <button onclick="setupDailyQuiz()" class="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg text-lg transform hover:scale-105 transition-transform">
-                        Play Again
-                    </button>
+                    
+                    <div class="flex flex-col gap-4">
+                        <button onclick="setupDailyQuiz()" class="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg text-lg transform hover:scale-105 transition-transform">
+                            Play Again
+                        </button>
+                        <a href="https://api.whatsapp.com/send?text=${shareScoreText}" target="_blank" class="w-full inline-block bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg text-lg transform hover:scale-105 transition-transform">
+                            Share Score to WhatsApp
+                        </a>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-4">Tip: Take a screenshot to share your result card with your score!</p>
                 </div>
             `;
             
