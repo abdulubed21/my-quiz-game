@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Quiz Generator for WhatsApp</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+        }
+        .quiz-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .option-btn {
+            transition: all 0.3s ease;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        .option-btn.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .option-btn:hover {
+            transform: translateY(-2px);
+        }
+        .correct {
+            background-color: #22c55e !important;
+            color: white !important;
+            animation: pulse-correct 0.6s ease;
+        }
+        .incorrect {
+            background-color: #ef4444 !important;
+            color: white !important;
+            animation: shake-incorrect 0.6s ease;
+        }
+        .hidden {
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes pulse-correct {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        @keyframes shake-incorrect {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white">
+
+    <div id="app-container" class="quiz-container p-4">
+        <!-- This container will hold all the different screens -->
+    </div>
+
+    <script>
+        const appContainer = document.getElementById('app-container');
+        const synth = window.speechSynthesis;
+        let quizData = []; // This will hold the 10 daily questions
+        let currentQuestionIndex = 0;
+        let score = 0;
+
+        // --- 1. Your Custom Question Bank ---
+        const masterQuestionBank = [
+            { question: "A'maal ka daro madar (ahad o paimaan) kis cheez par hai?", options: ["Hukum dene par", "A'mal karne par", "Niyat karne par"], answer: "Niyat karne par" },
+            { question: "Nabi S.A.W. ko ghanti (bell) ki si awaaz kab mahsoos hoti thi?", options: ["Koi Khushkhabari ke waqt", "Khauf (Dar) ke waqt", "Wahi Nazil hote waqt"], answer: "Wahi Nazil hote waqt" },
+            { question: "Nabi S.A.W. par wahi aane ki shuruaat kaise hui thi?", options: ["Ache aur Sache Khawabo se", "Jibraeel a.s. ke aane se", "Gaar e Hira me Qiyam karne se"], answer: "Ache aur Sache Khawabo se" },
+            { question: "Jisne Allah ke Nabi par jhoot bola uska hashr (anjaam) kya hoga?", options: ["Wo Manafiqeen me se ho gya", "Wo Jahannam me Jayega", "Wo Islam se Kharij ho gaya (Nikal gaya)"], answer: "Wo Jahannam me Jayega" },
+            { question: "غُفْرَانَكَ Inme se wo konsi jagah hai jaha is dua ko Nabi S.A.W. padhte the?", options: ["Masjid se Nikalte waqt", "Ghar se Nikalte waqt", "Bait ul Khala (Toilet) se Nikalte waqt"], answer: "Bait ul Khala (Toilet) se Nikalte waqt" },
+            { question: "Namaz ki kunji (key) kya hai?", options: ["Azaan", "Wazu (Taharat)", "Taqwiyat (Allah ka dar)"], answer: "Wazu (Taharat)" },
+            { question: "Takleef deh baat sunkar bhi sabse ziyada sabr karne wala kon hai?", options: ["Muttaqi", "Momin", "Allah"], answer: "Allah" },
+            { question: "Diyanat dari, achi khaslat, insaaf pasand Nabuwwat ka konsa hissa hai?", options: ["10 (Daswa) hissa", "70 (Sattarwa) hissa", "25 (Pachiswa) hissa"], answer: "25 (Pachiswa) hissa" },
+            { question: "Wo kon log hain jinke liye ye duniya jail (qaid khana) hai?", options: ["Musalmaan", "Yahoodi", "Momin"], answer: "Momin" },
+            { question: "Tamam burayi aur shar (fasaad) se kiski panaah (hifazat) maangni chahiye?", options: ["Shaitan", "Iblees", "Allah"], answer: "Allah" },
+            { question: "Wo kon si zaat hai jise kabhi maut nahi aayegi?", options: ["Jinnaat (Shaitan)", "Farishte", "Allah"], answer: "Allah" },
+            { question: "Qayamat ke din Aulaad Adam ka sardar kon hoga?", options: ["Hazrat Adam a.s.", "Hazrat Nooh a.s.", "Hazrat Muhammad s.a.w."], answer: "Hazrat Muhammad s.a.w." },
+            { question: "Aakhirat ka aadha din (½ din) duniya ke kitne saal ke barabar hai?", options: ["100 Saal", "200 Saal", "500 Saal"], answer: "500 Saal" },
+            { question: "Wo kon hai jiska koi beta nahi hai aur na woh kisi ka beta hai?", options: ["Allah", "Fira'on", "Hazart Yosha a.s."], answer: "Allah" },
+            { question: "Asal maaldaar kon hai?", options: ["Jo Lagataar Haj karta ho", "Jo Dil ka Acha ho", "Jo Rozana Roza rakhta ho"], answer: "Jo Dil ka Acha ho" },
+            { question: "Qur'an Majeed ki wo kon si aakhari Surah hai jo ek baar me poori nazil hui hai?", options: ["Surah Al-Kausar", "Surah Al-Feel", "Surah An-Nasr"], answer: "Surah An-Nasr" },
+            { question: "Qayamat wale din qabar me se sabse pahle kon uthega?", options: ["Hazrat Adam a.s.", "Hazrat Ibraheem a.s.", "Hazrat Muhammad ﷺ"], answer: "Hazrat Muhammad ﷺ" },
+            { question: "Nabi ﷺ ne pahalwaan (taqatwar) kise kaha hai?", options: ["Jo logo ko hara de", "Farmabardar", "Gusse me Qabu hona"], answer: "Gusse me Qabu hona" },
+            { question: "Faqeer, maaldaar se kitne saal pahle Jannat me jayenge?", options: ["70 Saal Pahle", "700 Saal Pahle", "500 Saal Pahle"], answer: "500 Saal Pahle" },
+            { question: "Abu Lahab aur uski biwi ke bare me Qur'an Majeed ki kon si Surah nazil hui thi?", options: ["Surah At-Tabbat", "Surah At-Taoba", "Surah Al-Feel"], answer: "Surah At-Tabbat" },
+            { question: "Masjid banane wale ka Hadees me kya zikr aaya hai?", options: ["Allah us Shakhs ko Mala Maal kar dega", "Allah usko Duniya me Izzat ata karega", "Allah uske liye Jannat me Ghar banayega"], answer: "Allah uske liye Jannat me Ghar banayega" },
+            { question: "Nabi ﷺ agar is duniya ke logo me kisi ko khalil banate to kisko banate? (aisa dost jiski dosti ka dil me rach bas jana, usko khalil kahte hain?)", options: ["Ibne Abu Quhafa", "Ibne Affan", "Ibne Khattab"], answer: "Ibne Abu Quhafa" },
+            { question: "Jab kisi ko gussa aaye to use kon si dua padhni chahiye?", options: ["Subhan Allah", "Nauzubillahi Min Zalik", "A'oodhu Billahi Minash Shaytaanir Rajeem"], answer: "A'oodhu Billahi Minash Shaytaanir Rajeem" },
+            { question: "Jis mashroob ka ziyada peene se nasha hota ho, to us mashroob ka thoda peena kaisa hai? (peene wali cheez ko mashroob kahte hain)", options: ["Thoda peena Halal hai", "Thoda Bhi peena Haram hai", "Thoda peene se koi Harj nahi"], answer: "Thoda Bhi peena Haram hai" },
+            { question: "Asal maaldaar kon hai?", options: ["Jo Lagataar Haj karta ho", "Jo Dil ka Acha ho", "Jo Rozana Roza rakhta ho"], answer: "Jo Dil ka Acha ho" },
+            { question: "Jab Allah ki madad aa gayi, aur log ghiroh dar ghiroh Islam me aane lage to Allah ne Nabi S.A.W. ko kya karne ko kaha?", options: ["aur Logo ko Tableegh kariye", "Logo ke Darmiyaan Islami Qanoon ko nafiz kariye", "Rab ki Tasbeeh bayan kariye aur Toubah kariye"], answer: "Rab ki Tasbeeh bayan kariye aur Toubah kariye" },
+            { question: "Bewah aur miskeen ke liye mehnat karne wale ki misaal kiski tarah hai?", options: ["Allah ki Raah me Qurbani karne wale ki tarah hai", "Masjid Ta'meer karne wale ki tarah hai", "Allah ki Raah me Jihaad karne wale ki tarah hai"], answer: "Allah ki Raah me Jihaad karne wale ki tarah hai" },
+            { question: "Nabi ﷺ ne kin do Sahabi ko dekh kar farmaya ki ye dono Islam ke kaan aur aankh hain?", options: ["Hazrat Hasan aur Hazrat Hussain r.a.", "Hazrat Abu Bakar aur Hazrat Umar r.a.", "Hazrat Hamza aur Hazrat Abbas r.a."], answer: "Hazrat Abu Bakar aur Hazrat Umar r.a." },
+            { question: "Qayamat ke din Mizaan (tarazu) par sabse bhari cheez kya hogi?", options: ["Namaz", "Hajj", "Ache Akhlaaq"], answer: "Ache Akhlaaq" },
+            { question: "Nabi S.A.W. ne kis jurm ke liye kaha hai ki agar koi shakhs use chauthi dafa kar le to use qatal kar do?", options: ["Zina", "Nasha", "Chori"], answer: "Nasha" },
+            { question: "Nabi ﷺ ka bichona (bed) kis cheez ka tha?", options: ["Chamde (Leather) ka", "Kapde (Cloth) ka", "Rooi (Cotton Wool) ka"], answer: "Chamde (Leather) ka" },
+            { question: "Namaz aur Qurbani kiske liye karni chahiye?", options: ["Nabiyon ke liye", "Auoliya ke liye", "Allah ke liye"], answer: "Allah ke liye" },
+            { question: "Nabi ﷺ ne kiski qasam khane ki ijazat di hai?", options: ["Nabiyon ki", "Auoliya ki", "Allah ki"], answer: "Allah ki" },
+            { question: "Logo ko jamhaee (yawning) kiski taraf se aati hai?", options: ["Jinn ki taraf se", "Allah ki taraf se", "Shaitan ki taraf se"], answer: "Shaitan ki taraf se" },
+            { question: "Hazrat Ali r.a. se nafrat (bughz) kon log karte hain?", options: ["Munafiq", "Mushrik", "Musalman"], answer: "Munafiq" },
+            { question: "Nabi ﷺ ne kis shakhs ke liye Jannat me ek ghar ki zimmedari li hai?", options: ["jo Mazak me bhi Jhoot na bole", "jo Haq par hone ke baawjood Ladai choor de", "jo Logo ko tang (Pareshan) na kare"], answer: "jo Haq par hone ke baawjood Ladai choor de" },
+            { question: "Ahadees me Ummul Khabais (tamam burayi aur gunahon ki jad) kise kaha gaya hai?", options: ["Sharaab ko", "Bure Akhlaaq ko", "Sood ko"], answer: "Sharaab ko" },
+            { question: "Oo logo jo mai janta hu agar tum jaan lete to.... Neeche diye gaye options ke zariye upar di gayi Hadees ko poora kariye.", options: ["Tum Kabhi Roza na rakhte", "Tum Haste ziyada Rote kam", "Tum Haste kam Rote ziyada"], answer: "Tum Haste kam Rote ziyada" },
+            { question: "Inme se wo kon sa qabeela hai jinko Allah ne be panaah inaam se nawaza? Al Kibriya aur unka zikar Qur'an Majeed me bhi kiya.", options: ["Banu Gatfaan", "Banu Quraish", "Banu Aqueel"], answer: "Banu Quraish" },
+            { question: "Jo shakhs Allah ko dil me yaad karta hai to Allah apne us bande ke liye kya karta hai?", options: ["Allah use apna Mahboob bana leta hai", "Allah usko apne pass bula leta hai", "Allah usko apne Dil me yaad karta hai"], answer: "Allah usko apne Dil me yaad karta hai" },
+            { question: "Ahadees me kiske bare me aaya hai ki agar usko khushi pahuchti hai to uske liye bhalaai hai aur agar nuqsaan pahuchta hai to bhi uske liye bhalaai hai?", options: ["Musalman", "Mushrik", "Momin"], answer: "Momin" },
+            { question: "Har Nabi ka ek Hawari hota hai. To Nabi ﷺ ne apna Hawari kisko bataya? (Hawari madad gaar ko bolte hain)", options: ["Hazrat Zubair Bin Awwam r.a.", "Hazrat Khalid Bin Waleed r.a.", "Hazrat Jundub Bin Junadah r.a."], answer: "Hazrat Zubair Bin Awwam r.a." },
+            { question: "Nabi S.A.W. ne kin logo ke liye Jannat ki bulandi par ek ghar ki zamanat (zemmedari) li hai?", options: ["Sadqa dene wale", "Ache Akhlaaq wale", "Namaz Qayam karne wale"], answer: "Ache Akhlaaq wale" },
+            { question: "Allah ki panaah talab kerne ke liye afzal kalam (behtareen Surah) konsi hai?", options: ["Surah Dahar", "Surah Mulk", "Surah Falaq aur Surah Naas"], answer: "Surah Falaq aur Surah Naas" },
+            { question: "Kon sa amal dil ko murda kar deta hai?", options: ["Zikr ilahi", "Chogal Khori", "Ziyada hasna"], answer: "Ziyada hasna" },
+            { question: "Abraha aur uske lashkar ka tazkirah Qur'an Majeed ki kis Surah me hai?", options: ["Surah Al-Feel", "Surah Al-Waqiah", "Surah Al-Mulk"], answer: "Surah Al-Feel" },
+            { question: "Jo shakhs Allah ki taraf chal kar aata hai to Allah...... neeche diye gaye options ke zariye upar di gayi Hadees ko poora kariye.", options: ["uski taraf Chal kar aata hai", "uska Rasta asaan kar deta hai", "uski taraf Daud (Run) kar aata hai"], answer: "uski taraf Daud (Run) kar aata hai" },
+            { question: "Nabi ﷺ ne Dajjal ki sifaat bayan karte huwe kya kaha? Dajjal ki dono aankhon (eyes) ke darmiyaan.", options: ["Dajjal likha hoga", "Kafir likha hoga", "Allah likha hoga"], answer: "Kafir likha hoga" },
+            { question: "Nabi ﷺ ne kon se Sahabi ke liye kaha ki mere maa baap tum par fida ho?", options: ["Hazrat Zubair Bin Awwam r.a.", "Hazrat Khalid Bin Waleed r.a.", "Hazrat Sa'ad Bin Malik r.a."], answer: "Hazrat Sa'ad Bin Malik r.a." },
+            { question: "Kisi bhi majlis me uthne se pahle logo ko kiska zikar karna chahiye?", options: ["Allah ka", "Farishton ka", "Shaitan ka"], answer: "Allah ka" },
+            { question: "Jo shakhs Allah se 3 (teen) martaba Jannat ka sawal karta hai to Jannat us shakhs ke bare me Allah se kya kahti hai?", options: ["Aye Allah use Jahannam se bacha le", "Aye Allah use Jannat ke qareeb kar de", "Aye Allah use Jannat me dakhil kar de"], answer: "Aye Allah use Jannat me dakhil kar de" },
+            { question: "Hadees ke mutabiq is Ummat (Ummat Mohammadi) ke aksar logo ki umar kitni hogi?", options: ["70 se 80 ke Darmiyaan", "85 se 90 ke Darmiyaan", "60 se 70 ke Darmiyaan"], answer: "60 se 70 ke Darmiyaan" },
+            { question: "Abraha aur uske lashkar ko Allah ke hukum se kisne halak kiya tha?", options: ["Parindon ne", "Insanon ne", "Janwaro ne"], answer: "Parindon ne" },
+            { question: "Qayamat ke din Allah se shifarish ke liye log sabse pahle kiske paas jayenge?", options: ["Hazrat Mohammad ﷺ", "Hazrat Nooh a.s.", "Hazrat Adam a.s."], answer: "Hazrat Adam a.s." },
+            { question: "Hadees ke mutabiq Hazrat Adam se le kar Qayamat tak sabse bada fitnah kya hai?", options: ["Aulaad ka fitnah", "Dajjal ka fitnah", "Maal ka fitnah"], answer: "Dajjal ka fitnah" },
+            { question: "Jannat me nawjawano ke sardaar kon hounge?", options: ["Hazrat Abu Bakar aur Hazrat Umar r.a.", "Hazrat Ali aur Hazrat Abbas r.а.", "Hazrat Hasan aur Hazrat Hussain r.a."], answer: "Hazrat Hasan aur Hazrat Hussain r.a." },
+            { question: "Kisi musalman ke liye ye jayez nahi (sahi nahi) ki wo apne musalmaan bhai se.....", options: ["3 Din se Ziyada milna julna choor de", "5 Din se Ziyada milna julna choor de", "7 Din se Ziyada milna julna choor de"], answer: "3 Din se Ziyada milna julna choor de" },
+            { question: "Jo shakhs Allah se 3 (teen) martaba Jahannam se panah maangta hai to Jahannam us shakhs ke bare me Allah se kya kahti hai?", options: ["Aye Allah use Jahannam se bacha le", "Aye Allah use Jannat ke qareeb kar de", "Aye Allah use Jahannam me dakhil kar de"], answer: "Aye Allah use Jahannam se bacha le" },
+            { question: "Lazzat ko todne wali wo kon si cheez hai jise Nabi S.A.W. ne kasrat se yaad karne ko kaha hai?", options: ["Qabar", "Maut", "Jahannam"], answer: "Maut" },
+            { question: "Inme se wo kon si Surah hai jis me gheebat karne wale, logo ke aib tatolne wale, ki kharabi bayan ki gayi hai?", options: ["Surah Lahab", "Surah Humaza", "Surah Mao'on"], answer: "Surah Humaza" },
+            { question: "Qayamat ke din kis Nabi ke kahne par log Nabi S.A.W. ke pass shifarish ke liye aayenge?", options: ["Hazrat Adam a.s.", "Hazrat Nooh a.s.", "Hazrat E'esa a.s."], answer: "Hazrat E'esa a.s." },
+            { question: "Hadees ke mutabiq Qayamat kaise logo par qayam hogi?", options: ["Bad Tareen logo par", "Pareshan logo par", "Bimaar logo par"], answer: "Bad Tareen logo par" },
+            { question: "Nabi S.A.W. ne kis Sahabi ke bare me kaha ki wo deen ke mamle (masle) me sabse ziyada sakht hain?", options: ["Hazrat Abu Bakar r.a.", "Hazrat Ali r.a.", "Hazrat Umar r.a."], answer: "Hazrat Umar r.a." },
+            { question: "Bando ki maghfirat ke liye Allah Jannat ke darwaze kis kis din kholta (open) hai?", options: ["Monday and Thursday", "Thursday and Friday", "Friday and Sunday"], answer: "Monday and Thursday" },
+            { question: "Qayamat ke din kitne qism ke logo ko Allah ka saya milega, jis din Allah ke saye ke alawa koi saya nhi hoga?", options: ["2 Qism ke logo ko", "4 Qism ke logo ko", "7 Qism ke logo ko"], answer: "7 Qism ke logo ko" },
+            { question: "Insaan ke marne ke baad jism ka konsa hissa hai jo nahi sadhta (kharaab nhi hota)?", options: ["Dil (Heart)", "Sar (Head)", "Reedh ki Haddi (Spinal Cord)"], answer: "Reedh ki Haddi (Spinal Cord)" },
+            { question: "Surah Al-Asr me Allah ne kis ki qasam khayi hai?", options: ["Zamane ki", "Sooraj ki", "Chand ki"], answer: "Zamane ki" },
+            { question: "Ummahaat ul Momneen me se wo kon hain jo kahti thi \"Tumhari shadi tumhare ghar walo ne ki aur meri Allah ne saat aasmaan ke upar ki\"?", options: ["Hazrat Ayesha r.a.", "Hazrat Maimoona r.a.", "Hazrat Zainab r.a."], answer: "Hazrat Zainab r.a." },
+            { question: "Hazrat Adam a.s. ki height (qad) kitni thi?", options: ["50 Haath (Hand)", "60 Haath (Hand)", "35 Haath (Hand)"], answer: "60 Haath (Hand)" },
+            { question: "Nabi ﷺ ne bad gumani se bachne ke liye kiyun kaha?", options: ["kiyunki ye Sabse bada Gunaah hai", "kiyunki ye Sabse bada Jhoot hai", "kiyunki ye Sabse bada Shirk hai"], answer: "kiyunki ye Sabse bada Jhoot hai" },
+            { question: "Nabi ﷺ har kaam ki shurua'at kaise karte the?", options: ["Daayi (Right) janib se", "Baayi (Left) janib se", "Auzubillah padh kar"], answer: "Daayi (Right) janib se" },
+            { question: "Insaan ke jism ki wo kon si haddi hai jisse Allah insaan ki Qayamat ke din dobara takhleeq karega?", options: ["Sar ki Haddi (Skull)", "Bazu ki Haddi (Arm Bone)", "Reedh ki Haddi (Spinal Cord)"], answer: "Reedh ki Haddi (Spinal Cord)" },
+            { question: "Qur'an Majeed ki wo kon si Surah hai jisme Allah ne daudhne (running) wale ghodho (horse) ki qasam khayi hai?", options: ["Surah Al-Asr", "Surah Al-Fatiha", "Surah Al-Aadiyaat"], answer: "Surah Al-Aadiyaat" },
+            { question: "Qayamat ke roz jab Jahannam ko laya jayega to Jahannam ki kitni lagame (bridles) houngi?", options: ["60 Hazaar (thousand)", "70 Hazaar (thousand)", "80 Hazaar (thousand)"], answer: "70 Hazaar (thousand)" },
+            { question: "Inme se wo kon si Ummahaat ul Momneen hain jinko Jibrail a.s. ne salam kiya tha?", options: ["Hazrat Ayesha r.a.", "Hazrat Hafsa r.a.", "Hazrat Maimoona r.a."], answer: "Hazrat Ayesha r.a." },
+            { question: "Allah ke nazdeek sabse pasandeeda naam kya hai? (Pasandeeda naam yani ki Mahaboob naam)", options: ["Aadam", "Khalid aur Umar", "Abdullah aur Abdul Rahman"], answer: "Abdullah aur Abdul Rahman" },
+            { question: "Wo konsi cheez hai jo Ummat Muhammadiya ki auraton (women's) ke liye halal hai aur mardo (men's) ke liye haram hai?", options: ["Resham (Silk) aur Sona (Gold)", "Resham (Silk) aur Chandi (Silver)", "Sona (Gold) aur Chandi (Silver)"], answer: "Resham (Silk) aur Sona (Gold)" },
+            { question: "Allah ne Ibne Aadam ke badan ke kis hisse ko Jahannam ki aag par haram kar diya hai (Al Kibriya yani ki \"Jahannam use nahi jalayegi\")?", options: ["Pairo (Legs) ko", "Dayan hath (Right hand) ko", "Sajde ke Nishan ko"], answer: "Sajde ke Nishan ko" },
+            { question: "Allah ne Qur'an Majeed ko kis raat me nazil kiya hai?", options: ["Shab e Qadr", "Shab e Baraat", "Shab e Meraaj"], answer: "Shab e Qadr" },
+            { question: "Wo konsi ibadat hai jiska ajar (badla) Allah khud apne haathon se dega?", options: ["Namaz", "Hajj", "Roza"], answer: "Roza" },
+            { question: "Inme se wo konse kalimaat (alfaaz) hain jinko Nabi (sallallahu alaihi wasallam) ne Jannat ke khazano me se ek khazana bataya hai?", options: ["La ilaha illallaah", "La H'aula vala Quwwata illa Billah", "Subhanallah, Alhamdulillah, Allahu Akbar"], answer: "La H'aula vala Quwwata illa Billah" },
+            { question: "Nabi (sallallahu alaihi wasallam) ne kis shakhs ke liye bola ki, tabahi hai uske liye, tabahi hai uske liye?", options: ["jo logo ki Gheebat kare", "jo Amanat me Khiyanat kare", "jo logo ko Hasane ke liye Jhoot bole"], answer: "jo logo ko Hasane ke liye Jhoot bole" },
+            { question: "Nabi (sallallahu alaihi wasallam) ki angoothi (ring) kis cheez ki thi?", options: ["Diamond", "Gold", "Silver"], answer: "Silver" },
+            { question: "Kaise shakhs ke bare me Nabi (sallallahu alaihi wasallam) ne farmaya ki wo ham me se nahi hai?", options: ["jo logo ki Gheebat kare", "jo Amanat me Khiyanat kare", "jo logo se Loot Maar kare"], answer: "jo logo se Loot Maar kare" },
+            { question: "Qur'an Majeed ke mutabiq Shab e Qadar kitne maheenon (months) se bahtar hai?", options: ["10", "500", "1000"], answer: "1000" },
+            { question: "Wo konse do kalimaat hain jo Allah ko mahboob hain, zubaan par halke hain, aur Meezan (tarazu) par bhari hain?", options: ["Subhanallah, Alhamdulillah", "La ilaha illallaah, Alhamdulillah", "Subhanallahi wabihamdih, Subhanallahil Azeem"], answer: "Subhanallahi wabihamdih, Subhanallahil Azeem" }
+        ];
+
+        // --- 2. Data Handling ---
+        function setupDailyQuiz() {
+            if (masterQuestionBank.length < 10) {
+                showErrorScreen("Not enough questions in the bank! Please add at least 10.");
+                return;
+            }
+            const shuffled = [...masterQuestionBank].sort(() => 0.5 - Math.random());
+            quizData = shuffled.slice(0, 10);
+            showStartScreen();
+        }
+
+        // --- 3. UI Screens ---
+        function showStartScreen() {
+            const shareText = encodeURIComponent("🧠 Here is today's daily quiz! Click the link to test your knowledge: " + window.location.href);
+            appContainer.innerHTML = `
+                <div class="w-full max-w-lg mx-auto text-center bg-slate-800 p-8 rounded-2xl shadow-2xl">
+                    <h1 class="text-4xl font-bold text-cyan-400 mb-4">Daily Quiz Challenge</h1>
+                    <p class="text-slate-300 mb-8">A fresh set of 10 questions from your personal collection is ready!</p>
+                    <button onclick="startQuiz()" class="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold py-4 px-8 rounded-lg shadow-lg text-xl mb-4 transform hover:scale-105 transition-transform">
+                        Start Quiz
+                    </button>
+                    <a href="https://api.whatsapp.com/send?text=${shareText}" target="_blank" class="w-full inline-block bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-8 rounded-lg shadow-lg text-xl transform hover:scale-105 transition-transform">
+                        Share to WhatsApp
+                    </a>
+                </div>
+            `;
+        }
+        
+        function showErrorScreen(message) {
+            appContainer.innerHTML = `
+                <div class="w-full max-w-lg mx-auto text-center bg-red-800 p-8 rounded-2xl shadow-2xl">
+                    <h1 class="text-3xl font-bold text-white mb-4">Oops! Something went wrong.</h1>
+                    <p class="text-red-200 mb-6">${message}</p>
+                    <button onclick="setupDailyQuiz()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg">
+                        Try Again
+                    </button>
+                </div>
+            `;
+        }
+
+        function showQuizScreen() {
+            const questionData = quizData[currentQuestionIndex];
+            const progress = ((currentQuestionIndex) / quizData.length) * 100;
+
+            appContainer.innerHTML = `
+                <div id="quiz-card" class="w-full max-w-lg mx-auto bg-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl">
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-2 text-slate-400">
+                            <p>Question ${currentQuestionIndex + 1}/${quizData.length}</p>
+                            <p class="font-bold">Score: ${score}</p>
+                        </div>
+                        <div class="w-full bg-slate-700 rounded-full h-2.5">
+                            <div class="bg-gradient-to-r from-cyan-500 to-blue-500 h-2.5 rounded-full" style="width: ${progress}%"></div>
+                        </div>
+                    </div>
+                    <h2 class="text-2xl sm:text-3xl font-bold mb-6 text-center text-slate-100 min-h-[100px]">${questionData.question}</h2>
+                    <div id="options-container" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        ${questionData.options.map(option => `
+                            <button onclick="selectAnswer(this, '${option.replace(/'/g, "\\'")}')" class="option-btn w-full bg-slate-700 hover:bg-slate-600 text-slate-100 font-semibold py-4 px-4 rounded-lg shadow-md">
+                                ${option}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            
+            speak(questionData.question, {}, showOptionsSequentially);
+        }
+
+        function showResultsScreen() {
+            const percentage = (score / quizData.length) * 100;
+            let feedbackMessage = "", emoji = "";
+
+            if (percentage === 100) { feedbackMessage = "Perfect Score! You're a genius!"; emoji = "🏆"; }
+            else if (percentage >= 75) { feedbackMessage = "Great job! You really know your stuff."; emoji = "🎉"; }
+            else if (percentage >= 50) { feedbackMessage = "Not bad! A little more practice needed."; emoji = "👍"; }
+            else { feedbackMessage = "Good effort! Keep learning."; emoji = "🧠"; }
+
+            const resultText = `Quiz Complete! You scored ${score} out of ${quizData.length}. ${feedbackMessage}`;
+            
+            appContainer.innerHTML = `
+                <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl text-center w-full max-w-lg mx-auto">
+                    <h2 class="text-4xl font-bold mb-4 text-cyan-400">Quiz Complete!</h2>
+                    <p class="text-6xl mb-6">${emoji}</p>
+                    <p class="text-xl text-slate-300 mb-2">${feedbackMessage}</p>
+                    <p class="text-2xl font-semibold text-white mb-8">You scored ${score} out of ${quizData.length}</p>
+                    <button onclick="setupDailyQuiz()" class="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg text-lg transform hover:scale-105 transition-transform">
+                        Play Again
+                    </button>
+                </div>
+            `;
+            
+            speak(resultText);
+        }
+        
+        // --- 4. Game Logic ---
+        function startQuiz() {
+            currentQuestionIndex = 0;
+            score = 0;
+            synth.cancel(); 
+            showQuizScreen();
+        }
+        
+        function selectAnswer(buttonEl, selectedOption) {
+            synth.cancel(); 
+            const questionData = quizData[currentQuestionIndex];
+            const optionsContainer = document.getElementById('options-container');
+            const buttons = optionsContainer.getElementsByTagName('button');
+            
+            for(let btn of buttons) { btn.disabled = true; }
+
+            // This function will be called after the voice feedback finishes.
+            function proceedToNextStep() {
+                currentQuestionIndex++;
+                if (currentQuestionIndex < quizData.length) {
+                    showQuizScreen();
+                } else {
+                    showResultsScreen();
+                }
+            }
+
+            if (selectedOption === questionData.answer) {
+                score++;
+                buttonEl.classList.add('correct');
+                // Speak "Correct!" and then, after a short delay, proceed to the next question.
+                speak("Correct!", { pitch: 1.5, rate: 1.2 }, () => {
+                    setTimeout(proceedToNextStep, 1200);
+                });
+            } else {
+                buttonEl.classList.add('incorrect');
+                // Highlight the correct answer visually so the user can see it.
+                for(let btn of buttons) {
+                    if (btn.innerText === questionData.answer) {
+                        btn.classList.add('correct');
+                    }
+                }
+                const feedbackText = `Incorrect. The correct answer is ${questionData.answer}.`;
+                // Speak the full feedback, and only when it's done, proceed to the next question.
+                speak(feedbackText, { pitch: 0.7, rate: 0.8 }, () => {
+                     setTimeout(proceedToNextStep, 1200);
+                });
+            }
+        }
+
+        // --- 5. Utilities ---
+        function speak(text, options = {}, callback) {
+            // Cancel any currently speaking utterances to avoid overlap.
+            synth.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            
+            // Set voice properties.
+            utterance.lang = 'hi-IN'; // Using Hindi voice pack for Urdu/Hinglish.
+            utterance.rate = options.rate || 0.9;
+            utterance.pitch = options.pitch || 1.1;
+            
+            // Set the callback function to be executed when speech ends.
+            utterance.onend = callback;
+            
+            // Speak the text.
+            synth.speak(utterance);
+        }
+        
+        function showOptionsSequentially() {
+            const optionButtons = Array.from(document.querySelectorAll('.option-btn'));
+            let currentIndex = 0;
+
+            function speakNextOption() {
+                if (currentIndex >= optionButtons.length) {
+                    return; // Stop when all options are spoken
+                }
+
+                const btn = optionButtons[currentIndex];
+                btn.classList.add('visible'); // Make the button appear
+
+                const textToSpeak = btn.innerText;
+                
+                // Use the main speak function to read the option.
+                // The callback for this speak call will be to move to the next option.
+                speak(textToSpeak, {}, () => {
+                    currentIndex++;
+                    speakNextOption(); // Speak the next option in the chain
+                });
+            }
+
+            // Start the process
+            speakNextOption();
+        }
+
+        // --- Initial Load ---
+        window.onload = setupDailyQuiz;
+
+    </script>
+</body>
+</html>
